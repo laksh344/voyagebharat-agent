@@ -21,10 +21,10 @@ It calls independent tools **in parallel**, recovers from dead ends (Manali has 
 
 ```ts
 streamText({
-  model: 'anthropic/claude-sonnet-5',           // any "provider/model" — no provider SDK, no per-provider key
+  model: 'google/gemini-3.6-flash',             // any "provider/model" — no provider SDK, no per-provider key
   tools, stopWhen: stepCountIs(10),
   providerOptions: { gateway: {
-    models: ['google/gemini-3.6-flash', 'openai/gpt-5.6-sol'],   // automatic cross-provider failover
+    models: ['deepseek/deepseek-v4-flash', 'openai/gpt-5-nano'], // automatic cross-provider failover
     tags: ['voyagebharat', 'travel-agent'],                      // spend & latency reporting per feature
   } },
 })
