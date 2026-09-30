@@ -1,6 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { findPlace, km, KNOWN, Place } from './geo';
+import { findPlace, km, Place } from './geo';
+import { resolvePlace } from './places';
 import { rng, pick, between, round10, demand, hhmm, todayIST, daysAhead } from './sample';
 import { flightLink, trainLink, busLink, hotelLink, cabLinks } from './links';
 import { liveEnabled, liveFlights, liveHotels, LiveError } from './live';
@@ -18,9 +19,9 @@ const cheapestFastest = <T extends { fare?: number; durationMin?: number; tags: 
   if (!f.tags.includes('cheapest')) f.tags.push('fastest'); else if (xs.length > 1) f.tags.push('fastest');
 };
 type Ends = { ok: false; err: string } | { ok: true; a: Place; b: Place; d: number };
-const endpoints = (from: string, to: string): Ends => {
-  const a = findPlace(from), b = findPlace(to);
-  if (!a || !b) return { ok: false, err: `I don't have route data for ${!a ? from : to}. Cities I know: ${KNOWN}.` };
+const endpoints = async (from: string, to: string): Promise<Ends> => {
+  const [a, b] = await Promise.all([resolvePlace(from), resolvePlace(to)]);
+  if (!a || !b) return { ok: false, err: `I couldn't find "${!a ? from : to}" in India. Check the spelling, or add the state (e.g. "Aurangabad, Maharashtra").` };
   if (a.name === b.name) return { ok: false, err: 'Origin and destination are the same city.' };
   return { ok: true, a, b, d: km(a, b) };
 };
@@ -30,7 +31,7 @@ export const searchFlights = tool({
   description: 'Search domestic flights between two Indian cities. Returns fares per person, times and booking links. Live Google Flights prices when available, otherwise a labelled estimate.',
   inputSchema: z.object({ from: z.string().describe('Origin city'), to: z.string().describe('Destination city'), date }),
   execute: async ({ from, to, date }): Promise<Result<FlightOption>> => {
-    const e = endpoints(from, to); if (!e.ok) return { available: false, reason: e.err };
+    const e = await endpoints(from, to); if (!e.ok) return { available: false, reason: e.err };
     const { a, b, d } = e;
     if (!a.iata || !b.iata) {
       const miss = !a.iata ? a : b;
@@ -71,7 +72,7 @@ export const searchTrains = tool({
   description: 'Search Indian Railways trains between two cities with per-class fare and seat availability. Availability is an indicative snapshot; IRCTC is the source of truth at booking.',
   inputSchema: z.object({ from: z.string(), to: z.string(), date }),
   execute: async ({ from, to, date }): Promise<Result<TrainOption>> => {
-    const e = endpoints(from, to); if (!e.ok) return { available: false, reason: e.err };
+    const e = await endpoints(from, to); if (!e.ok) return { available: false, reason: e.err };
     const { a, b, d } = e;
     if (!a.rail || !b.rail) {
       const miss = !a.rail ? a : b;
@@ -110,7 +111,7 @@ export const searchBuses = tool({
   description: 'Search inter-city buses between two Indian cities. Returns fares, times, seats left and booking links.',
   inputSchema: z.object({ from: z.string(), to: z.string(), date }),
   execute: async ({ from, to, date }): Promise<Result<BusOption>> => {
-    const e = endpoints(from, to); if (!e.ok) return { available: false, reason: e.err };
+    const e = await endpoints(from, to); if (!e.ok) return { available: false, reason: e.err };
     const { a, b, d } = e;
     if (d > 1500) return { available: false, reason: `${d} km is too far for a comfortable bus journey.`, suggestion: 'Prefer a train or flight for this distance.' };
     const r = rng(`B|${a.name}|${b.name}|${date}`), m = demand(date);
@@ -132,7 +133,7 @@ export const searchHotels = tool({
   description: 'Search hotels in an Indian city for a stay. Prices are per room per night. Optionally cap the nightly price. Live Google Hotels prices when available, otherwise a labelled estimate.',
   inputSchema: z.object({ city: z.string(), checkin: date, nights: z.number().int().min(1).max(30), guests: z.number().int().min(1).max(8).optional().describe('Adults sharing the room; default 2'), maxPricePerNight: z.number().optional().describe('INR cap per night') }),
   execute: async ({ city, checkin, nights, guests, maxPricePerNight }): Promise<Result<HotelOption>> => {
-    const p: Place = findPlace(city) ?? { name: city, lat: 0, lng: 0, costIndex: 1, areas: ['City Centre', 'Near Station', 'Old Town', 'Airport Road', 'Riverside'] };
+    const p: Place = (await resolvePlace(city)) ?? { name: city, lat: 0, lng: 0, costIndex: 1, areas: ['City Centre', 'Near Station', 'Old Town', 'Airport Road', 'Riverside'] };
     const out0 = addDays(checkin, nights), label = `${p.name} · ${nights} night${nights > 1 ? 's' : ''}`;
     let liveFail: string | undefined;
     if (liveEnabled()) {

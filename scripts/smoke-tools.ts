@@ -58,6 +58,20 @@ const date = (n: number) => new Date(Date.now() + n * 864e5).toISOString().slice
   ok(hpt.available && hpt.route.includes('Hampi'), 'Hospet resolves to Hampi and has trains');
   const hptF: any = await run(tools.searchFlights, { from: 'Hyderabad', to: 'Hampi', date: d });
   ok(hptF.available === false && /Hubballi|Vidyanagar/.test(hptF.suggestion ?? ''), `Hampi flights -> nearest airport: ${hptF.suggestion}`);
+  console.log('\n[3c] Any Indian city, not just the curated table');
+  const rpr: any = await run(tools.searchTrains, { from: 'Hyderabad', to: 'Raipur', date: d });
+  ok(rpr.available && rpr.route.includes('Raipur (R)'), `Raipur resolves to Raipur Jn (${rpr.route})`);
+  const rprF: any = await run(tools.searchFlights, { from: 'Hyderabad', to: 'Raipur', date: d });
+  ok(rprF.available && rprF.route.includes('RPR'), `Raipur flights via RPR (${rprF.highlights?.cheapest})`);
+  const all: any = await run(tools.searchTrains, { from: 'Kochi', to: 'Alleppey', date: d });
+  ok(all.available && all.route.includes('ALLP'), 'old name "Alleppey" still resolves (offline station match)');
+  const kod: any = await run(tools.searchFlights, { from: 'Chennai', to: 'Kodaikanal', date: d });
+  if (kod.available === false && /couldn't find/.test(kod.reason)) console.log('  SKIP  Kodaikanal needs the Open-Meteo geocoder (offline?)');
+  else ok(kod.available === false && /no commercial airport/.test(kod.reason) && /IXM/.test(kod.suggestion ?? ''), `hill town without airport → ${kod.suggestion}`);
+  const bih: any = await run(tools.searchTrains, { from: 'Patna', to: 'Aurangabad, Bihar', date: d });
+  if (bih.available) ok(bih.options[0].durationMin < 8 * 60, `"Aurangabad, Bihar" picks the Bihar town, not Maharashtra (${bih.route})`);
+  else console.log('  SKIP  state hint needs the Open-Meteo geocoder (offline?)');
+
   let lateDayTrain = 0, longIntercity = 0;
   for (const [a, b] of [['Hyderabad', 'Goa'], ['Delhi', 'Jaipur'], ['Pune', 'Hyderabad'], ['Chennai', 'Bengaluru'], ['Mumbai', 'Goa'], ['Delhi', 'Lucknow']])
     for (let k = 0; k < 20; k++) {

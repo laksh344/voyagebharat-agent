@@ -1,5 +1,3 @@
-import { KNOWN } from './geo';
-
 const IST = 'Asia/Kolkata';
 /** Models are bad at weekday arithmetic, so give them a ready-made calendar instead of just "today". */
 function calendar() {
@@ -38,7 +36,7 @@ GETTING THE FACTS RIGHT
 - AVAILABLE, RAC and WL are snapshots. Never call a seat "confirmed" or "guaranteed". If your pick is RAC or WL, say so.
 - Only search what was asked. "Trains to Jaipur" means trains only.
 - If a tool says something isn't available, say why in a few words and use its suggestion. Don't invent options.
-- You cover these places: ${KNOWN}.
+- You cover any city or town in India. If a tool can't find a place, ask the user to check the spelling or add the state. Never tell them a city isn't supported.
 - You never book, and never ask for card details, phone numbers or OTPs. Booking happens through the links on the cards.
 
 MAKE IT PERSONAL

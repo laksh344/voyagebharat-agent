@@ -66,7 +66,8 @@ npm run smoke          # every tool, the live-price path against a fake SerpApi 
 ```
 lib/agent.ts     the agent loop + AI Gateway config      lib/tools.ts    7 tools (zod schemas)
 lib/prompt.ts    system prompt                           lib/sample.ts   seeded fare/demand model
-lib/geo.ts       44 India cities, hubs, distance model   lib/links.ts    affiliate-stamped redirects
+lib/geo.ts       44 curated cities, distance model      lib/links.ts    affiliate-stamped redirects
+lib/places.ts    any other Indian town: geocode + nearest airport/station (lib/data, `npm run data:geo`)
 lib/live.ts      SerpApi flights + hotels, 30-min cache
 app/api/chat     streaming route + input validation + rate limit
 components/      Chat + result cards; components/chat/ UI  scripts/        smoke tests (no API key) + model helpers

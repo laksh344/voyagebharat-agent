@@ -1,4 +1,5 @@
-/** India city table: coordinates + the airport / railway hub that serves each place.
+/** Curated India city table: coordinates + the airport / railway hub that serves each place.
+ *  Any other city or town is resolved on demand by lib/places.ts.
  *  Distance drives the fare/duration model. Places without an airport or railway
  *  return `null` there and point at the nearest hub instead. */
 export interface Place {
@@ -85,5 +86,3 @@ export function km(a: Place, b: Place): number {
   // road/rail routes are ~25% longer than the great-circle line
   return Math.round(2 * R * Math.asin(Math.sqrt(h)) * 1.25);
 }
-
-export const KNOWN = PLACES.map((p) => p.name).join(', ');
