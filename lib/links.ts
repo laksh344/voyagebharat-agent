@@ -6,8 +6,8 @@ const q = (o: Record<string, string | number>) => new URLSearchParams(Object.ent
 
 export const flightLink = (from: string, to: string, date: string) =>
   `https://flight.easemytrip.com/FlightList/Index?${q({ org: from, dest: to, deptdate: date, adt: 1, utm_source: AFF, utm_content: sid('flight') })}`;
-export const trainLink = (from: string, to: string, date: string, cls: string) =>
-  `https://www.ixigo.com/search/result/train?${q({ from, to, date, class: cls, utm_source: AFF, utm_content: sid('train') })}`;
+export const trainLink = (from: string, to: string, date: string, cls?: string) =>
+  `https://www.ixigo.com/search/result/train?${q({ from, to, date, ...(cls ? { class: cls } : {}), utm_source: AFF, utm_content: sid('train') })}`;
 export const busLink = (from: string, to: string, date: string) =>
   `https://www.redbus.in/search?${q({ fromCity: from, toCity: to, doj: date, utm_source: AFF, utm_content: sid('bus') })}`;
 export const hotelLink = (city: string, checkin: string, checkout: string) =>

@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "smoke:tools": "tsx scripts/smoke-tools.ts",
     "smoke:agent": "tsx scripts/smoke-agent.ts",
-    "smoke": "npm run smoke:tools && npm run smoke:agent"
+    "smoke": "npm run smoke:tools && npm run smoke:live && npm run smoke:agent",
+    "smoke:live": "tsx scripts/smoke-live.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.97",

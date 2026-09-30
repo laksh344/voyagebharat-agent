@@ -45,6 +45,21 @@ export const PLACES: Place[] = [
   P('Darjeeling', 27.041, 88.2663, { nearestAir: 'Bagdogra (IXB), ~3.5 hr by road', nearestRail: 'New Jalpaiguri (NJP), then road / toy train', costIndex: 0.95 }),
   P('Leh', 34.1526, 77.5771, { iata: 'IXL', nearestRail: 'None — nearest railhead is Jammu; fly or drive', costIndex: 1.2 }),
   P('Srinagar', 34.0837, 74.7973, { iata: 'SXR', nearestRail: 'Jammu / Udhampur, then road', costIndex: 1.05 }),
+  P('Bhopal', 23.2599, 77.4126, { iata: 'BHO', rail: 'BPL', costIndex: 0.9, areas: ['MP Nagar', 'New Market', 'Arera Colony', 'Lake View', 'Habibganj'] }),
+  P('Indore', 22.7196, 75.8577, { iata: 'IDR', rail: 'INDB', costIndex: 0.9, areas: ['Vijay Nagar', 'Palasia', 'Rajwada', 'AB Road', 'Bhawarkua'] }),
+  P('Nagpur', 21.1458, 79.0882, { iata: 'NAG', rail: 'NGP', costIndex: 0.9 }),
+  P('Hampi', 15.335, 76.46, { rail: 'HPT', nearestAir: 'Vidyanagar (VDY, limited) or Hubballi (HBX), ~3.5 hr by road', costIndex: 0.85, areas: ['Hampi Bazaar', 'Virupapur Gaddi', 'Kamalapur', 'Hosapete', 'Anegundi'] }),
+  P('Coimbatore', 11.0168, 76.9558, { iata: 'CJB', rail: 'CBE', costIndex: 0.9 }),
+  P('Madurai', 9.9252, 78.1198, { iata: 'IXM', rail: 'MDU', costIndex: 0.9, areas: ['Meenakshi Temple', 'Anna Nagar', 'KK Nagar', 'Periyar', 'Goripalayam'] }),
+  P('Mangaluru', 12.9141, 74.856, { iata: 'IXE', rail: 'MAQ', costIndex: 0.95 }),
+  P('Bhubaneswar', 20.2961, 85.8245, { iata: 'BBI', rail: 'BBS', costIndex: 0.9 }),
+  P('Patna', 25.5941, 85.1376, { iata: 'PAT', rail: 'PNBE', costIndex: 0.9 }),
+  P('Guwahati', 26.1445, 91.7362, { iata: 'GAU', rail: 'GHY', costIndex: 0.95 }),
+  P('Vijayawada', 16.5062, 80.648, { iata: 'VGA', rail: 'BZA', costIndex: 0.9 }),
+  P('Tirupati', 13.6288, 79.4192, { iata: 'TIR', rail: 'TPTY', costIndex: 0.9 }),
+  P('Agra', 27.1767, 78.0081, { rail: 'AGC', nearestAir: 'Delhi (DEL), ~3.5 hr by road; Agra (AGR) has very few flights', costIndex: 0.95, areas: ['Taj Ganj', 'Fatehabad Road', 'Sadar Bazaar', 'Civil Lines', 'Agra Cantt'] }),
+  P('Puducherry', 11.9416, 79.8083, { rail: 'PDY', nearestAir: 'Chennai (MAA), ~3 hr by road', costIndex: 1.0, areas: ['White Town', 'Promenade', 'Auroville Road', 'Heritage Town', 'Mission Street'] }),
+  P('Dehradun', 30.3165, 78.0322, { iata: 'DED', rail: 'DDN', costIndex: 0.95 }),
   P('Port Blair', 11.6234, 92.7265, { iata: 'IXZ', nearestRail: 'None — island; fly or ship', costIndex: 1.25 }),
 ];
 
@@ -52,6 +67,7 @@ const norm = (s: string) => s.trim().toLowerCase().replace(/[^a-z ]/g, '');
 const ALIASES: Record<string, string> = {
   bangalore: 'bengaluru', bombay: 'mumbai', calcutta: 'kolkata', madras: 'chennai', vizag: 'visakhapatnam',
   trivandrum: 'thiruvananthapuram', mysore: 'mysuru', benares: 'varanasi', banaras: 'varanasi', cochin: 'kochi',
+  hospet: 'hampi', hosapete: 'hampi', mangalore: 'mangaluru', pondicherry: 'puducherry', pondy: 'puducherry',
   'new delhi': 'delhi', panaji: 'goa', panjim: 'goa', 'north goa': 'goa', 'south goa': 'goa',
 };
 

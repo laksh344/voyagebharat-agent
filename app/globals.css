@@ -96,3 +96,5 @@ button{font:inherit;cursor:pointer}
 .fine{color:var(--tert);font-size:12px;text-align:center;padding:6px 0 16px;font-family:var(--font-geist-mono),monospace}
 
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.card-f a{color:var(--blue);text-decoration:underline;text-underline-offset:2px}

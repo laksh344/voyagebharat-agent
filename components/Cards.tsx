@@ -3,17 +3,17 @@ import type { FlightOption, TrainOption, BusOption, HotelOption, WeatherOut, Bud
 
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 const dur = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
-const SRC: Record<string, string> = { 'sample-model': 'Modelled estimate', 'open-meteo': 'Live forecast', 'seasonal-estimate': 'Seasonal estimate' };
+const SRC: Record<string, string> = { 'sample-model': 'Modelled estimate', 'live-google-flights': 'Live · Google Flights', 'live-google-hotels': 'Live · Google Hotels', 'open-meteo': 'Live forecast', 'seasonal-estimate': 'Seasonal estimate' };
 
 function Tags({ tags }: { tags: string[] }) {
   return <>{tags.filter((t) => t !== 'nonstop').map((t) => <span key={t} className={`tag ${t}`}>{t.replace('_', ' ')}</span>)}</>;
 }
-function Shell({ icon, title, sub, meta, children }: { icon: string; title: string; sub?: string; meta?: Meta; children: ReactNode }) {
+function Shell({ icon, title, sub, meta, check, children }: { icon: string; title: string; sub?: string; meta?: Meta; check?: string; children: ReactNode }) {
   return (
     <section className="card" aria-label={title}>
       <header className="card-h"><span className="card-i" aria-hidden="true">{icon}</span><div><h3>{title}</h3>{sub && <p>{sub}</p>}</div></header>
       <div className="card-b">{children}</div>
-      {meta && <footer className="card-f">{SRC[meta.source] ?? meta.source}{meta.note ? ` · ${meta.note}` : ''}</footer>}
+      {meta && <footer className="card-f">{SRC[meta.source] ?? meta.source}{meta.note ? ` · ${meta.note}` : ''}{check && <> · <a href={check} target="_blank" rel="noopener noreferrer sponsored">Check live seats ↗</a></>}</footer>}
     </section>
   );
 }
@@ -39,7 +39,7 @@ export function Flights({ r }: { r: Extract<Result<FlightOption>, { available: t
 }
 export function Trains({ r }: { r: Extract<Result<TrainOption>, { available: true }> }) {
   return (
-    <Shell icon="🚆" title="Trains" sub={`${r.route} · ${r.date}`} meta={r}>
+    <Shell icon="🚆" title="Trains" sub={`${r.route} · ${r.date}`} meta={r} check={r.liveCheckUrl}>
       {r.options.map((o, i) => (
         <div className="row col" key={i}>
           <div className="row-main"><strong>{o.name}</strong> <span className="dim">#{o.number}</span><Tags tags={o.tags} /></div>
@@ -58,7 +58,7 @@ export function Trains({ r }: { r: Extract<Result<TrainOption>, { available: tru
 }
 export function Buses({ r }: { r: Extract<Result<BusOption>, { available: true }> }) {
   return (
-    <Shell icon="🚌" title="Buses" sub={`${r.route} · ${r.date}`} meta={r}>
+    <Shell icon="🚌" title="Buses" sub={`${r.route} · ${r.date}`} meta={r} check={r.liveCheckUrl}>
       {r.options.map((o, i) => (
         <div className="row" key={i}>
           <div className="row-main"><strong>{o.operator}</strong> <span className="dim">{o.type}</span><Tags tags={o.tags} /></div>
@@ -74,8 +74,8 @@ export function Hotels({ r }: { r: Extract<Result<HotelOption>, { available: tru
     <Shell icon="🏨" title="Hotels" sub={`${r.route} · ${r.date}`} meta={r}>
       {r.options.map((o, i) => (
         <div className="row" key={i}>
-          <div className="row-main"><strong>{o.name}</strong> <span className="dim">{'★'.repeat(o.stars)} · {o.area}</span><Tags tags={o.tags} /></div>
-          <div className="row-mid">Rated {o.rating}/5 <span className="dim">· {o.freeCancellation ? 'free cancellation' : 'non-refundable'}</span></div>
+          <div className="row-main"><strong>{o.name}</strong> <span className="dim">{[o.stars ? '★'.repeat(o.stars) : '', o.area].filter(Boolean).join(' · ')}</span><Tags tags={o.tags} /></div>
+          <div className="row-mid">{o.rating ? `Rated ${o.rating}/5` : 'Not yet rated'}{o.freeCancellation !== undefined && <span className="dim"> · {o.freeCancellation ? 'free cancellation' : 'non-refundable'}</span>}</div>
           <div className="row-end"><span className="price">{inr(o.pricePerNight)}<small>/night</small></span><Book href={o.bookUrl} /></div>
         </div>
       ))}

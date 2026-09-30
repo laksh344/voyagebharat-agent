@@ -45,6 +45,26 @@ const date = (n: number) => new Date(Date.now() + n * 864e5).toISOString().slice
   ok(JSON.stringify(a.options.map((o: any) => [o.number, o.classes.map((c: any) => [c.cls, c.fare, c.availability])])) === JSON.stringify(b.options.map((o: any) => [o.number, o.classes.map((c: any) => [c.cls, c.fare, c.availability])])), 'same query → same results (deterministic)');
   ok((await run(tools.searchFlights, { from: 'Hyderabad', to: 'Goa', date: d })).options[0].bookUrl !== fl.options[0].bookUrl, 'each booking link carries a unique sub-ID for attribution');
 
+  console.log('\n[3b] Fixes from the 29 Sep test run');
+  const bho: any = await run(tools.searchFlights, { from: 'Hyderabad', to: 'Bhopal', date: d });
+  ok(bho.available && bho.route.includes('BHO'), `Bhopal now covered (${bho.highlights.cheapest})`);
+  const hpt: any = await run(tools.searchTrains, { from: 'Bengaluru', to: 'Hospet', date: d });
+  ok(hpt.available && hpt.route.includes('Hampi'), 'Hospet resolves to Hampi and has trains');
+  const hptF: any = await run(tools.searchFlights, { from: 'Hyderabad', to: 'Hampi', date: d });
+  ok(hptF.available === false && /Hubballi|Vidyanagar/.test(hptF.suggestion ?? ''), `Hampi flights -> nearest airport: ${hptF.suggestion}`);
+  let lateDayTrain = 0, longIntercity = 0;
+  for (const [a, b] of [['Hyderabad', 'Goa'], ['Delhi', 'Jaipur'], ['Pune', 'Hyderabad'], ['Chennai', 'Bengaluru'], ['Mumbai', 'Goa'], ['Delhi', 'Lucknow']])
+    for (let k = 0; k < 20; k++) {
+      const res: any = await run(tools.searchTrains, { from: a, to: b, date: date(3 + k) });
+      for (const t of res.options) {
+        const h = Number(t.depart.slice(0, 2));
+        if (/^(Vande Bharat|Shatabdi)/.test(t.name) && h > 15) lateDayTrain++;
+        if (t.name === 'Intercity Express' && t.durationMin > 8 * 60) longIntercity++;
+      }
+    }
+  ok(lateDayTrain === 0, 'Vande Bharat / Shatabdi never depart after 15:00 (120 searches)');
+  ok(longIntercity === 0, 'no "Intercity Express" on long runs');
+
   console.log('\n[4] Deterministic budget maths');
   const bg: any = await run(tools.estimateBudget, { travelers: 2, budget: 20000, lines: [
     { label: 'Train x2', amount: 1240, category: 'transport' }, { label: 'Hotel 4n', amount: 8800, category: 'stay' },

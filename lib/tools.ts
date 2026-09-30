@@ -3,10 +3,13 @@ import { z } from 'zod';
 import { findPlace, km, KNOWN, Place } from './geo';
 import { rng, pick, between, round10, demand, hhmm, todayIST, daysAhead } from './sample';
 import { flightLink, trainLink, busLink, hotelLink, cabLinks } from './links';
+import { liveEnabled, liveFlights, liveHotels, LiveError } from './live';
 import type { Result, FlightOption, TrainOption, BusOption, HotelOption, WeatherOut, BudgetOut, CabOut, Meta } from './types';
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Travel date, YYYY-MM-DD (Indian Standard Time)');
-const meta = (note?: string): Meta => ({ source: 'sample-model', asOf: new Date().toISOString(), note });
+const meta = (note?: string, source: Meta['source'] = 'sample-model'): Meta => ({ source, asOf: new Date().toISOString(), note });
+/** Note shown on a modelled card when live pricing was attempted and failed. */
+const fallbackNote = (err: unknown) => err instanceof LiveError ? `Live prices unavailable (${err.message}) — showing estimate.` : 'Live prices unavailable — showing estimate.';
 const addDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
 const cheapestFastest = <T extends { fare?: number; durationMin?: number; tags: string[] }>(xs: T[], fare: (x: T) => number) => {
   if (!xs.length) return;
@@ -24,7 +27,7 @@ const endpoints = (from: string, to: string): Ends => {
 
 /* ---------------------------------- FLIGHTS ---------------------------------- */
 export const searchFlights = tool({
-  description: 'Search domestic flights between two Indian cities. Returns fares per person, times and booking links. Sample-model data, not live inventory.',
+  description: 'Search domestic flights between two Indian cities. Returns fares per person, times and booking links. Live Google Flights prices when available, otherwise a labelled estimate.',
   inputSchema: z.object({ from: z.string().describe('Origin city'), to: z.string().describe('Destination city'), date }),
   execute: async ({ from, to, date }): Promise<Result<FlightOption>> => {
     const e = endpoints(from, to); if (!e.ok) return { available: false, reason: e.err };
@@ -32,6 +35,19 @@ export const searchFlights = tool({
     if (!a.iata || !b.iata) {
       const miss = !a.iata ? a : b;
       return { available: false, reason: `${miss.name} has no commercial airport.`, suggestion: miss.nearestAir };
+    }
+    const route = `${a.name} (${a.iata}) → ${b.name} (${b.iata})`;
+    let liveFail: string | undefined;
+    if (liveEnabled()) {
+      try {
+        const { options } = await liveFlights(a.iata, b.iata, date, flightLink(a.iata, b.iata, date));
+        if (options.length) {
+          cheapestFastest(options, (x) => x.fare);
+          return { available: true, route, date, options, ...meta('Live Google Flights fare per person, one way, economy. Prices change; confirm at checkout.', 'live-google-flights'),
+            highlights: { cheapest: `₹${options[0].fare.toLocaleString('en-IN')} on ${options[0].airline}`, distanceKm: String(d) } };
+        }
+        liveFail = 'No live flights found for this date — showing estimate.';
+      } catch (err) { liveFail = fallbackNote(err); }
     }
     const r = rng(`F|${a.name}|${b.name}|${date}`), m = demand(date), gc = d / 1.25;
     const carriers: [string, string][] = [['IndiGo', '6E'], ['Air India', 'AI'], ['Akasa Air', 'QP'], ['Air India Express', 'IX'], ['SpiceJet', 'SG']];
@@ -45,7 +61,7 @@ export const searchFlights = tool({
       return { airline: name, flightNo: `${code}-${Math.floor(200 + r() * 700)}`, depart: hhmm(start), arrive: hhmm(start + dur), durationMin: dur, stops, fare, tags: stops ? [] : ['nonstop'], bookUrl: flightLink(a.iata!, b.iata!, date) };
     }).sort((x, y) => x.fare - y.fare);
     cheapestFastest(options, (x) => x.fare);
-    return { available: true, route: `${a.name} (${a.iata}) → ${b.name} (${b.iata})`, date, options, ...meta('Fare per person, one way, incl. taxes (modelled).'),
+    return { available: true, route, date, options, ...meta(liveFail ?? 'Fare per person, one way, incl. taxes (modelled).'),
       highlights: { cheapest: `₹${options[0].fare.toLocaleString('en-IN')} on ${options[0].airline}`, distanceKm: String(d) } };
   },
 });
@@ -65,10 +81,13 @@ export const searchTrains = tool({
     const kinds: [string, number, number][] = d <= 900 ? [['Vande Bharat Express', 78, 1.3], ['Shatabdi Express', 72, 1.25], ['Superfast Express', 55, 1], ['Intercity Express', 44, 0.95]]
                 : d <= 1400 ? [['Rajdhani Express', 68, 1.3], ['Duronto Express', 63, 1.2], ['Superfast Express', 54, 1], ['Garib Rath', 50, 0.85]]
                 : [['Rajdhani Express', 66, 1.3], ['Duronto Express', 60, 1.2], ['Superfast Express', 52, 1], ['Humsafar Express', 55, 1.05]];
-    const options: TrainOption[] = kinds.map(([name, kph, prem], i) => {
+    const options: TrainOption[] = kinds.map(([rawName, kph, prem], i) => {
+      const name = rawName === 'Intercity Express' && d > 300 ? 'Mail Express' : rawName; // intercity trains are short-haul
       const premium = prem > 1.2;
       const dur = Math.round((d / kph) * 60 + between(r, 10, 40));
-      const start = Math.round(pick(r, [5.25, 6, 8.5, 14.25, 16.5, 19.5, 21.75]) * 60);
+      // Vande Bharat / Shatabdi are daytime trains; overnight slots only for sleeper services
+      const dayTrain = name.startsWith('Vande Bharat') || name.startsWith('Shatabdi');
+      const start = Math.round(pick(r, dayTrain ? [5.25, 6, 6.5, 14.25, 15] : [5.25, 6, 8.5, 14.25, 16.5, 19.5, 21.75]) * 60);
       const sl = Math.max(165, round10(0.43 * d * prem));
       const rows: [string, number][] = premium && d <= 900 ? [['CC', 3.4], ['EC', 6.4]] : [['SL', 1], ['3A', 2.7], ['2A', 3.9]];
       const classes = rows.map(([cls, mult]) => {
@@ -81,7 +100,7 @@ export const searchTrains = tool({
     options.sort((x, y) => Math.min(...x.classes.map((c) => c.fare)) - Math.min(...y.classes.map((c) => c.fare)));
     cheapestFastest(options as any, (x: any) => Math.min(...x.classes.map((c: any) => c.fare)));
     const cheapest = options[0], best = cheapest.classes.reduce((p, c) => (c.fare < p.fare ? c : p));
-    return { available: true, route: `${a.name} (${a.rail}) → ${b.name} (${b.rail})`, date, options, ...meta('Indicative availability snapshot — confirm live seats on IRCTC/ixigo before booking.'),
+    return { available: true, route: `${a.name} (${a.rail}) → ${b.name} (${b.rail})`, date, options, ...meta('Estimated fares and availability — check live seats before booking.'), liveCheckUrl: trainLink(a.rail!, b.rail!, date),
       highlights: { cheapest: `₹${best.fare.toLocaleString('en-IN')} (${best.cls}) on ${cheapest.name}`, distanceKm: String(d) } };
   },
 });
@@ -104,16 +123,33 @@ export const searchBuses = tool({
         fare: Math.max(250, round10(rate * d * m * between(r, 0.9, 1.15))), tags: [], bookUrl: busLink(a.name, b.name, date) };
     }).sort((x, y) => x.fare - y.fare);
     cheapestFastest(options, (x) => x.fare);
-    return { available: true, route: `${a.name} → ${b.name}`, date, options, ...meta('Fare per seat (modelled).'), highlights: { cheapest: `₹${options[0].fare.toLocaleString('en-IN')} on ${options[0].operator}`, distanceKm: String(d) } };
+    return { available: true, route: `${a.name} → ${b.name}`, date, options, ...meta('Estimated fare per seat — check live seats before booking.'), liveCheckUrl: busLink(a.name, b.name, date), highlights: { cheapest: `₹${options[0].fare.toLocaleString('en-IN')} on ${options[0].operator}`, distanceKm: String(d) } };
   },
 });
 
 /* ------------------------------------ HOTELS ------------------------------------ */
 export const searchHotels = tool({
-  description: 'Search hotels in an Indian city for a stay. Prices are per room per night. Optionally cap the nightly price.',
-  inputSchema: z.object({ city: z.string(), checkin: date, nights: z.number().int().min(1).max(30), maxPricePerNight: z.number().optional().describe('INR cap per night') }),
-  execute: async ({ city, checkin, nights, maxPricePerNight }): Promise<Result<HotelOption>> => {
+  description: 'Search hotels in an Indian city for a stay. Prices are per room per night. Optionally cap the nightly price. Live Google Hotels prices when available, otherwise a labelled estimate.',
+  inputSchema: z.object({ city: z.string(), checkin: date, nights: z.number().int().min(1).max(30), guests: z.number().int().min(1).max(8).optional().describe('Adults sharing the room; default 2'), maxPricePerNight: z.number().optional().describe('INR cap per night') }),
+  execute: async ({ city, checkin, nights, guests, maxPricePerNight }): Promise<Result<HotelOption>> => {
     const p: Place = findPlace(city) ?? { name: city, lat: 0, lng: 0, costIndex: 1, areas: ['City Centre', 'Near Station', 'Old Town', 'Airport Road', 'Riverside'] };
+    const out0 = addDays(checkin, nights), label = `${p.name} · ${nights} night${nights > 1 ? 's' : ''}`;
+    let liveFail: string | undefined;
+    if (liveEnabled()) {
+      try {
+        const { options } = await liveHotels(p.name, checkin, out0, guests ?? 2, maxPricePerNight, hotelLink(p.name, checkin, out0));
+        if (options.length) {
+          options[0].tags.push('cheapest');
+          const best = [...options].filter((o) => o.rating).sort((x, y) => y.rating - x.rating)[0];
+          if (best) best.tags.push('top_rated');
+          options.forEach((o) => o.freeCancellation && o.tags.push('free_cancellation'));
+          return { available: true, route: label, date: `${checkin} → ${out0}`, options, ...meta('Live Google Hotels rate per room per night. Prices change; confirm at checkout.', 'live-google-hotels'),
+            highlights: { cheapest: `₹${options[0].pricePerNight.toLocaleString('en-IN')}/night at ${options[0].name}`, nights: String(nights) } };
+        }
+        if (maxPricePerNight) return { available: false, reason: `No live hotel rates under ₹${maxPricePerNight.toLocaleString('en-IN')}/night in ${p.name} for these dates.`, suggestion: 'Try a higher cap or different dates.' };
+        liveFail = 'No live hotel rates found — showing estimate.';
+      } catch (err) { liveFail = fallbackNote(err); }
+    }
     const r = rng(`H|${p.name}|${checkin}`), m = demand(checkin), out = addDays(checkin, nights);
     const adj = ['Grand', 'Royal', 'Lakeview', 'Palm Grove', 'Heritage', 'Urban', 'Sunrise', 'Coral', 'Amber', 'Blue Lagoon'].sort(() => r() - 0.5);
     const noun = ['Residency', 'Inn', 'Suites', 'Retreat', 'Stay', 'Resort', 'Haveli', 'Homestay'];
@@ -127,7 +163,7 @@ export const searchHotels = tool({
     options[0].tags.push('cheapest');
     [...options].sort((x, y) => y.rating - x.rating)[0].tags.push('top_rated');
     options.forEach((o) => o.freeCancellation && o.tags.push('free_cancellation'));
-    return { available: true, route: `${p.name} · ${nights} night${nights > 1 ? 's' : ''}`, date: `${checkin} → ${out}`, options, ...meta('Price per room per night (modelled).'),
+    return { available: true, route: `${p.name} · ${nights} night${nights > 1 ? 's' : ''}`, date: `${checkin} → ${out}`, options, ...meta(liveFail ?? 'Price per room per night (modelled).'),
       highlights: { cheapest: `₹${options[0].pricePerNight.toLocaleString('en-IN')}/night at ${options[0].name}`, nights: String(nights) } };
   },
 });

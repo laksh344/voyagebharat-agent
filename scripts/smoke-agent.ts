@@ -40,6 +40,36 @@ const model = new MockLanguageModelV4({
   ok(types.filter((t) => t === 'tool-input-available').length === 5, 'every tool call exposed to the UI as a tool part');
   ok(types.includes('start-step') && types.includes('finish-step'), 'step boundaries emitted (UI can render progress)');
 
+  console.log('\n[1b] Always ends with a written answer');
+  const choices: any[] = []; let n = 0;
+  const greedy = new MockLanguageModelV4({
+    doStream: async (opts: any) => {
+      choices.push(opts.toolChoice?.type ?? 'auto'); n++;
+      if (n === 1) return stream([call('g1', 'estimateBudget', { travelers: 1, lines: [{ label: 'x', amount: 100, category: 'other' }] })], 'tool-calls');
+      if (opts.toolChoice?.type === 'none') return stream([{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'Done.' }, { type: 'text-end', id: 't' }], 'stop');
+      return stream([call('g' + n, 'getWeather', { city: 'Goa', date: d })], 'tool-calls'); // a model that would keep calling tools forever
+    },
+  });
+  const gr = await (await runAgent([{ id: '2', role: 'user', parts: [{ type: 'text', text: 'x' }] }] as any, greedy as any)).toUIMessageStreamResponse().text();
+  ok(choices[1] === 'none' && gr.includes('Done.') && n === 2, `tools switched off right after the budget; model forced to answer (calls: ${choices.join(' -> ')})`);
+  const choices2: any[] = []; let m = 0;
+  const looper = new MockLanguageModelV4({
+    doStream: async (opts: any) => {
+      choices2.push(opts.toolChoice?.type ?? 'auto'); m++;
+      if (opts.toolChoice?.type === 'none') return stream([{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'Final.' }, { type: 'text-end', id: 't' }], 'stop');
+      return stream([call('l' + m, 'getWeather', { city: 'Goa', date: d })], 'tool-calls');
+    },
+  });
+  const lr = await (await runAgent([{ id: '3', role: 'user', parts: [{ type: 'text', text: 'x' }] }] as any, looper as any)).toUIMessageStreamResponse().text();
+  ok(lr.includes('Final.') && choices2[choices2.length - 1] === 'none' && m <= 12, `a model that never stops researching still gets a final answer at step ${m}`);
+
+  console.log('\n[1c] Calendar in the prompt');
+  const { systemPrompt } = await import('../lib/prompt');
+  const sp = systemPrompt();
+  const lines = [...sp.matchAll(/^(\d{4}-\d{2}-\d{2}) = (\w+)day/gm)];
+  const wrong = lines.filter(([, iso, w]) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' }) !== w + 'day');
+  ok(lines.length === 15 && wrong.length === 0, `15-day calendar with correct weekdays (${lines[0][1]} = ${lines[0][2]}day …)`);
+
   console.log('\n[2] Route guards');
   const post = (b: unknown, ip = '9.9.9.9') => POST(new Request('http://x/api/chat', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': ip }, body: typeof b === 'string' ? b : JSON.stringify(b) }));
   ok((await post('{not json')).status === 400, 'malformed JSON → 400');
