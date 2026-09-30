@@ -178,6 +178,17 @@ function seasonal(city: string, date: string): WeatherOut {
   return { place: city, date, minC: base - 9, maxC: base, summary: monsoon ? 'Monsoon showers likely' : 'Mostly dry', rainChancePct: monsoon ? 65 : 10,
     meta: { source: 'seasonal-estimate', asOf: new Date().toISOString(), note: 'Typical conditions for this month, not a forecast.' } };
 }
+const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+/** Pulls one day out of an Open-Meteo daily response. Returns undefined when the day is missing or only partly filled
+ *  (the last day of the 16-day window often has null temps/codes), so the caller falls back to the labelled estimate. */
+export function parseForecast(f: any, place: string, date: string): WeatherOut | undefined {
+  const d = f?.daily, i = d?.time?.indexOf?.(date) ?? -1;
+  if (i < 0) return;
+  const min = d.temperature_2m_min?.[i], max = d.temperature_2m_max?.[i], code = d.weather_code?.[i], rain = d.precipitation_probability_max?.[i];
+  if (!num(min) || !num(max) || !num(code)) return;
+  return { place, date, minC: Math.round(min), maxC: Math.round(max), summary: WMO[code] ?? 'Mixed', ...(num(rain) ? { rainChancePct: rain } : {}),
+    meta: { source: 'open-meteo', asOf: new Date().toISOString(), note: 'Live forecast (Open-Meteo).' } };
+}
 export const getWeather = tool({
   description: 'Get the weather for a place on a date. Uses a live forecast for the next ~16 days, otherwise a typical-season estimate (labelled).',
   inputSchema: z.object({ city: z.string(), date }),
@@ -192,9 +203,7 @@ export const getWeather = tool({
         lat = g.results[0].latitude; lng = g.results[0].longitude;
       }
       const f = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max&timezone=Asia%2FKolkata&forecast_days=16`, { signal: AbortSignal.timeout(5000) })).json();
-      const i = f.daily.time.indexOf(date); if (i < 0) return seasonal(city, date);
-      return { place: known?.name ?? city, date, minC: Math.round(f.daily.temperature_2m_min[i]), maxC: Math.round(f.daily.temperature_2m_max[i]), summary: WMO[f.daily.weather_code[i]] ?? 'Mixed', rainChancePct: f.daily.precipitation_probability_max[i],
-        meta: { source: 'open-meteo', asOf: new Date().toISOString(), note: 'Live forecast (Open-Meteo).' } };
+      return parseForecast(f, known?.name ?? city, date) ?? seasonal(city, date);
     } catch { return seasonal(city, date); }
   },
 });
