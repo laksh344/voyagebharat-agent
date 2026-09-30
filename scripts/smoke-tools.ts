@@ -1,5 +1,5 @@
 /** Exercises every tool directly (no LLM, no API key): `npm run smoke:tools` */
-import { tools } from '../lib/tools';
+import { tools, parseForecast } from '../lib/tools';
 const run = (t: any, input: any) => t.execute(input, { toolCallId: 't', messages: [] });
 const ok = (c: boolean, m: string) => { console.log(`${c ? '  PASS' : '  FAIL'}  ${m}`); if (!c) process.exitCode = 1; };
 const date = (n: number) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
@@ -22,6 +22,12 @@ const date = (n: number) => new Date(Date.now() + n * 864e5).toISOString().slice
   ok(cab.uber.includes('uber.com') && cab.ola.includes('olacabs') && cab.rapido.includes('rapido'), `cab links + range ₹${cab.indicativeFareInr.low}–${cab.indicativeFareInr.high}`);
   const wx: any = await run(tools.getWeather, { city: 'Goa', date: date(60) });
   ok(wx.meta.source === 'seasonal-estimate', `weather >16 days ahead falls back to a LABELLED estimate (${wx.maxC}°C, ${wx.summary})`);
+  // Offline: Open-Meteo's last forecast day often has null temps/codes (seen 1 Oct 2026 for 16 Oct: 0°/0°C labelled live)
+  const om = { daily: { time: ['2026-10-15', '2026-10-16'], temperature_2m_max: [31.3, null], temperature_2m_min: [25.1, null], weather_code: [51, null], precipitation_probability_max: [10, 20] } };
+  const good: any = parseForecast(om, 'Goa', '2026-10-15');
+  ok(good?.meta.source === 'open-meteo' && good.minC === 25 && good.maxC === 31 && good.summary === 'Drizzle', `complete forecast day parsed live (${good?.minC}–${good?.maxC}°C)`);
+  ok(parseForecast(om, 'Goa', '2026-10-16') === undefined, 'null forecast values are rejected, not rounded to 0°C');
+  ok(parseForecast({ error: true, reason: 'rate limited' }, 'Goa', '2026-10-15') === undefined && parseForecast(om, 'Goa', '2026-10-17') === undefined, 'error body / date outside window rejected');
 
   console.log('\n[2] Honest failure paths');
   const mf: any = await run(tools.searchFlights, { from: 'Delhi', to: 'Manali', date: d });
