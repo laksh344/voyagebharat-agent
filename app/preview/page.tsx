@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { tools } from '@/lib/tools';
 import { Flights, Trains, Buses, Hotels, Weather, Cab, Budget, Unavailable } from '@/components/Cards';
 
@@ -8,6 +9,8 @@ const run = (t: any, input: any) => t.execute(input, { toolCallId: 'p', messages
 
 /** Design-QA page: every result card rendered from real tool output. No model or API key needed. */
 export default async function Preview() {
+  // Dev-only: each render can spend live SerpApi searches from the shared monthly quota.
+  if (process.env.NODE_ENV === 'production') notFound();
   const d = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
   const [fl, tr, bs, ht, wx, cab, bg, manali] = await Promise.all([
     run(tools.searchFlights, { from: 'Hyderabad', to: 'Goa', date: d }), run(tools.searchTrains, { from: 'Hyderabad', to: 'Goa', date: d }),
@@ -17,10 +20,10 @@ export default async function Preview() {
     run(tools.searchFlights, { from: 'Delhi', to: 'Manali', date: d }),
   ]);
   return (
-    <div className="shell"><main className="thread" style={{ paddingTop: 24 }}>
-      <h1 style={{ fontSize: 28, letterSpacing: '-.03em' }}>Component gallery</h1>
+    <main className="gallery">
+      <h1>Component gallery</h1>
       <Trains r={tr} /><Flights r={fl} /><Buses r={bs} /><Hotels r={ht} /><Weather r={wx} /><Cab r={cab} /><Budget r={bg} />
-      <Unavailable icon="ℹ️" title="Searching flights" r={manali} />
-    </main></div>
+      <Unavailable icon="searchFlights" title="Flights" r={manali} />
+    </main>
   );
 }

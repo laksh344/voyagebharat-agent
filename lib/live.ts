@@ -28,7 +28,7 @@ async function serpapi(params: Record<string, string | number>): Promise<{ data:
       let body: any = null;
       try { body = await res.json(); } catch { /* non-JSON */ }
       if (res.status === 429) throw new LiveError('live price quota reached');
-      if (!res.ok || body?.error) throw new LiveError(String(body?.error ?? `live price service error ${res.status}`).replace(key, '***'));
+      if (!res.ok || body?.error) throw new LiveError(String(body?.error ?? `live price service error ${res.status}`).replaceAll(key, '***'));
       cache.set(ck, { at: Date.now(), data: body });
       return body;
     })().finally(() => inflight.delete(ck)));

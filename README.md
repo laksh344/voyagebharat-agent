@@ -23,7 +23,7 @@ It calls independent tools **in parallel**, recovers from dead ends (Manali has 
 ```ts
 streamText({
   model: 'openai/gpt-oss-120b',           // any "provider/model" — no provider SDK, no per-provider key
-  tools, stopWhen: stepCountIs(10),
+  tools, stopWhen: stepCountIs(12),
   providerOptions: { gateway: {
     models: ['spacexai/grok-4.1-fast-non-reasoning', 'openai/gpt-4o-mini'],   // automatic cross-provider failover
     tags: ['voyagebharat', 'travel-agent'],                      // spend & latency reporting per feature
@@ -53,21 +53,23 @@ npm run dev                    # http://localhost:3000
 **No key needed to verify the logic:**
 ```bash
 npm run smoke          # every tool, the live-price path against a fake SerpApi (cache, quota, outage, key-leak checks), and the full agent loop
-# then open /preview   # every result card rendered from real tool output
+# then open /preview   # every result card rendered from real tool output (dev only — it's hidden in production to protect the SerpApi quota)
 ```
 
 ## Deploy (2 minutes)
 1. Push this repo to GitHub (public).
 2. Import it at vercel.com/new → add env vars `AI_GATEWAY_API_KEY` and (optional) `SERPAPI_KEY` → Deploy.
-3. In the AI Gateway dashboard, **set a spend limit** on the key before sharing the URL.
+3. In the AI Gateway dashboard, **set a spend limit** on the key before sharing the URL. In SerpApi, turn on the usage alert.
+4. Optional but recommended for a public link: add a Vercel WAF rate-limit rule on `/api/chat`. The built-in limiter (8 requests/min per IP) is per server instance, so it's only a first line of defence.
 
 ## Structure
 ```
 lib/agent.ts     the agent loop + AI Gateway config      lib/tools.ts    7 tools (zod schemas)
 lib/prompt.ts    system prompt                           lib/sample.ts   seeded fare/demand model
-lib/geo.ts       30 India cities, hubs, distance model   lib/links.ts    affiliate-stamped redirects
-app/api/chat     streaming route + input guards + rate limit
-components/      Chat (useChat) + result cards           scripts/        smoke tests (no API key)
+lib/geo.ts       44 India cities, hubs, distance model   lib/links.ts    affiliate-stamped redirects
+lib/live.ts      SerpApi flights + hotels, 30-min cache
+app/api/chat     streaming route + input validation + rate limit
+components/      Chat + result cards; components/chat/ UI  scripts/        smoke tests (no API key) + model helpers
 ```
 
 ## License

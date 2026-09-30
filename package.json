@@ -2,7 +2,7 @@
   "name": "voyagebharat-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "VoyageBHARAT \u2014 an AI travel agent for India, routed through Vercel AI Gateway.",
+  "description": "VoyageBHARAT — an AI travel agent for India, routed through Vercel AI Gateway.",
   "license": "MIT",
   "scripts": {
     "dev": "next dev",
@@ -19,6 +19,7 @@
     "@ai-sdk/react": "^4.0.122",
     "ai": "^7.0.119",
     "geist": "^1.7.2",
+    "motion": "^13.4.6",
     "next": "^16.3.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
